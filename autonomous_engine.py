@@ -10,7 +10,7 @@ import time
 import subprocess
 import re
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import shutil
 
@@ -23,6 +23,7 @@ ROADMAP_FILE = PROJECT_ROOT / "roadmap.json"
 STATE_FILE = PROJECT_ROOT / "system" / "state.json"
 MAIN_FILE = PROJECT_ROOT / "main.py"
 LOG_FILE = PROJECT_ROOT / "data" / "app.log"
+STATUS_FILE = PROJECT_ROOT / "data" / "status.json"
 VENV_ACTIVATE = PROJECT_ROOT / "venv" / "Scripts" / "activate"
 GIT_REPO = "https://github.com/dbrkzzzx-creator/BetSentinel.git"
 GIT_PATH = r"D:\AI\Git\bin\git.exe"
@@ -85,6 +86,35 @@ class AutonomousEngine:
         os.makedirs(self.project_root / "system", exist_ok=True)
         with open(STATE_FILE, 'w') as f:
             json.dump(state, f, indent=2)
+    
+    def update_status(self, status="running", error_message=None):
+        """Update status.json with current engine status"""
+        try:
+            # Ensure data directory exists
+            os.makedirs(self.project_root / "data", exist_ok=True)
+            
+            # Count errors
+            error_count = len(self.state.get('errors_encountered', []))
+            
+            # Prepare status data
+            status_data = {
+                "status": status,
+                "last_update": datetime.now(timezone.utc).isoformat(),
+                "iterations": self.iteration,
+                "errors": error_count
+            }
+            
+            # Add error message if provided
+            if error_message:
+                status_data["error_message"] = error_message
+            
+            # Write to file safely
+            with open(STATUS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(status_data, f, indent=2, ensure_ascii=False)
+        
+        except Exception as e:
+            # Don't let status update failure break the engine
+            print(f"[WARNING] Failed to update status.json: {e}")
     
     def get_next_task(self):
         """Get next unfinished task from roadmap"""
@@ -345,6 +375,16 @@ class AutonomousEngine:
             }
             self.state['errors_encountered'].append(self.state['last_error'])
             
+            # Prepare error message for status
+            error_msg = f"Iteration {self.iteration}: {error_info.get('error_type', 'UnknownError')}"
+            if error_info.get('message'):
+                error_msg += f" - {error_info.get('message')[:200]}"
+            if stderr:
+                error_msg += f"\n{stderr[:500]}"
+            
+            # Update status with error
+            self.update_status(status="error", error_message=error_msg)
+            
             # Attempt to fix
             if error_info.get('file'):
                 self.fix_error(error_info)
@@ -369,6 +409,9 @@ class AutonomousEngine:
         self.state['successful_runs'] += 1
         self.state['last_success_time'] = datetime.now().isoformat()
         self.state['last_error'] = None
+        
+        # Update status as running
+        self.update_status(status="running")
         
         # Commit progress
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -403,6 +446,9 @@ class AutonomousEngine:
         print(f"Start Time: {self.start_time}")
         print("="*60)
         
+        # Initialize status on startup
+        self.update_status(status="running")
+        
         # Check if project is complete
         if self.state.get('project_complete'):
             print("Project marked as complete. Exiting.")
@@ -429,6 +475,8 @@ class AutonomousEngine:
                         print("[OK] PROJECT COMPLETE!")
                         print("BetSentinel is stable and ready")
                         print("="*60)
+                        # Update status one last time
+                        self.update_status(status="running")
                         break
                 
                 # Run iteration
@@ -440,10 +488,14 @@ class AutonomousEngine:
         
         except KeyboardInterrupt:
             print("\n\nInterrupted by user. Saving state...")
+            self.update_status(status="running")
             self.save_state()
         except Exception as e:
             print(f"\n\nFatal error in autonomous engine: {e}")
+            error_traceback = traceback.format_exc()
             traceback.print_exc()
+            # Update status with fatal error
+            self.update_status(status="error", error_message=f"Fatal error: {str(e)}\n{error_traceback}")
             self.save_state()
 
 if __name__ == "__main__":
