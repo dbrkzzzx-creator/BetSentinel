@@ -23,6 +23,7 @@ ENGINE_FILE = PROJECT_ROOT / "autonomous_engine.py"
 LOG_FILE = PROJECT_ROOT / "data" / "engine_run.log"
 ROADMAP_FILE = PROJECT_ROOT / "roadmap.json"
 STATE_FILE = PROJECT_ROOT / "system" / "state.json"
+GIT_PATH = r"D:\AI\Git\bin\git.exe"
 
 class Supervisor:
     def __init__(self):
@@ -154,6 +155,11 @@ class Supervisor:
     def git_commit_success(self):
         """Commit and push on successful iteration"""
         try:
+            # Check if Git executable exists
+            if not Path(GIT_PATH).exists():
+                self.log(f"[WARNING] Git operation skipped (path invalid: {GIT_PATH})", "WARNING")
+                return False
+            
             # Check if git repo exists
             if not (self.project_root / ".git").exists():
                 self.log("Git repo not initialized, skipping commit", "WARNING")
@@ -161,7 +167,7 @@ class Supervisor:
             
             # Add all changes
             result = subprocess.run(
-                ['git', 'add', '.'],
+                [GIT_PATH, 'add', '.'],
                 cwd=str(self.project_root),
                 capture_output=True,
                 text=True
@@ -174,7 +180,7 @@ class Supervisor:
             # Commit
             commit_msg = "auto iteration - success"
             result = subprocess.run(
-                ['git', 'commit', '-m', commit_msg],
+                [GIT_PATH, 'commit', '-m', commit_msg],
                 cwd=str(self.project_root),
                 capture_output=True,
                 text=True
@@ -183,7 +189,7 @@ class Supervisor:
             if result.returncode == 0:
                 # Push
                 push_result = subprocess.run(
-                    ['git', 'push', 'origin', 'main'],
+                    [GIT_PATH, 'push', 'origin', 'main'],
                     cwd=str(self.project_root),
                     capture_output=True,
                     text=True

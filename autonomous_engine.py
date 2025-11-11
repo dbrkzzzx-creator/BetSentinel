@@ -25,6 +25,7 @@ MAIN_FILE = PROJECT_ROOT / "main.py"
 LOG_FILE = PROJECT_ROOT / "data" / "app.log"
 VENV_ACTIVATE = PROJECT_ROOT / "venv" / "Scripts" / "activate"
 GIT_REPO = "https://github.com/dbrkzzzx-creator/BetSentinel.git"
+GIT_PATH = r"D:\AI\Git\bin\git.exe"
 
 class AutonomousEngine:
     def __init__(self):
@@ -236,6 +237,11 @@ class AutonomousEngine:
     def git_commit(self, message):
         """Commit and push changes"""
         try:
+            # Check if Git executable exists
+            if not Path(GIT_PATH).exists():
+                print(f"[WARNING] Git operation skipped (path invalid: {GIT_PATH})")
+                return None
+            
             # Check if git repo exists
             if not (self.project_root / ".git").exists():
                 print("Git repo not initialized, skipping commit")
@@ -243,7 +249,7 @@ class AutonomousEngine:
             
             # Add all changes
             subprocess.run(
-                ['git', 'add', '.'],
+                [GIT_PATH, 'add', '.'],
                 cwd=str(self.project_root),
                 capture_output=True,
                 check=False
@@ -251,7 +257,7 @@ class AutonomousEngine:
             
             # Commit
             result = subprocess.run(
-                ['git', 'commit', '-m', message],
+                [GIT_PATH, 'commit', '-m', message],
                 cwd=str(self.project_root),
                 capture_output=True,
                 text=True
@@ -260,7 +266,7 @@ class AutonomousEngine:
             if result.returncode == 0:
                 # Get commit hash
                 hash_result = subprocess.run(
-                    ['git', 'rev-parse', 'HEAD'],
+                    [GIT_PATH, 'rev-parse', 'HEAD'],
                     cwd=str(self.project_root),
                     capture_output=True,
                     text=True
@@ -269,7 +275,7 @@ class AutonomousEngine:
                 
                 # Push
                 subprocess.run(
-                    ['git', 'push', 'origin', 'main'],
+                    [GIT_PATH, 'push', 'origin', 'main'],
                     cwd=str(self.project_root),
                     capture_output=True,
                     check=False
