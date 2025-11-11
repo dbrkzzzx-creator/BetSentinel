@@ -127,6 +127,7 @@ def run_backtest():
         logger.info(f"Backtest completed: {metrics['total_events']} events, "
                    f"{metrics['buy_signals']} BUY signals, "
                    f"{metrics['ignore_signals']} IGNORE signals")
+        logger.info("Backtest complete")
     else:
         logger.warning("No metrics calculated")
 

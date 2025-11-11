@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 def get_recent_odds(hours=1):
     """Get recent odds from database"""
-    conn = sqlite3.connect('data/odds.db')
-    
     try:
+        conn = sqlite3.connect('data/odds.db')
+        
         # Get odds from the last N hours
         cutoff_time = datetime.now() - timedelta(hours=hours)
         
@@ -25,12 +25,17 @@ def get_recent_odds(hours=1):
         df = pd.read_sql_query(query, conn, params=(cutoff_time,))
         return df
     
+    except sqlite3.OperationalError as e:
+        logger.error(f"Database error fetching recent odds: {e}")
+        return pd.DataFrame()
     except Exception as e:
         logger.error(f"Error fetching recent odds: {e}")
         return pd.DataFrame()
-    
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except:
+            pass
 
 def analyze_odds(df):
     """Analyze odds data and generate signals"""
@@ -114,6 +119,7 @@ def generate_signals():
     if signals:
         log_signals(signals)
         logger.info(f"Generated {len(signals)} signals")
+        logger.info("Signal generated")
     else:
         logger.info("No signals generated")
 

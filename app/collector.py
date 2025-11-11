@@ -63,8 +63,17 @@ def fetch_odds():
         logger.info(f"Fetched {len(data)} events from The Odds API")
         return data
     
+    except requests.exceptions.Timeout:
+        logger.error("Timeout while fetching odds from API")
+        return None
+    except requests.exceptions.ConnectionError:
+        logger.error("Connection error while fetching odds - check internet connection")
+        return None
     except requests.exceptions.RequestException as e:
         logger.error(f"Error fetching odds: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in fetch_odds: {e}")
         return None
 
 def store_odds(odds_data):
@@ -118,6 +127,7 @@ def store_odds(odds_data):
 
 def collect_odds():
     """Main function to collect and store odds"""
+    logger.info("Collector started")
     logger.info("Starting odds collection...")
     
     # Ensure database is initialized

@@ -88,6 +88,22 @@ Daily reports are generated automatically at midnight and saved to:
 - `data/report.txt` - Text summary
 - `data/daily_report.png` - Visual charts
 
+## Autonomous Project Engineer
+
+BetSentinel includes an autonomous engineering system that continuously tests and improves the codebase. See [AUTONOMOUS_ENGINE.md](AUTONOMOUS_ENGINE.md) for details.
+
+To run the autonomous engine:
+
+```bash
+python autonomous_engine.py
+```
+
+The engine will:
+- Continuously test the system
+- Auto-fix errors
+- Commit progress to git
+- Run until the system is stable for 24+ hours
+
 ## Requirements
 
 - Python 3.12+

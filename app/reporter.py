@@ -189,6 +189,7 @@ def generate_daily_report():
             f.write(f"\n\nChart saved to: {chart_path}\n")
     
     logger.info(f"Daily report saved to {report_file}")
+    logger.info("Report generated")
     logger.info(summary)
 
 if __name__ == "__main__":
