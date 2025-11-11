@@ -241,22 +241,44 @@ def create_app():
                 
                 // Determine status
                 let status = statusData.status || 'unknown';
-                const lastUpdate = statusData.last_update ? new Date(statusData.last_update) : null;
+                let lastUpdate = null;
                 const now = new Date();
                 
-                // Check if stuck (last update older than 5 minutes)
-                if (lastUpdate) {
-                    const minutesSinceUpdate = (now - lastUpdate) / (1000 * 60);
-                    if (minutesSinceUpdate > 5 && status === 'running') {
+                // Parse last update timestamp (handle ISO 8601 with timezone)
+                if (statusData.last_update) {
+                    try {
+                        // Replace Z with +00:00 for consistent parsing
+                        const timestamp = statusData.last_update.replace('Z', '+00:00');
+                        lastUpdate = new Date(timestamp);
+                        
+                        // Check if date is valid
+                        if (isNaN(lastUpdate.getTime())) {
+                            lastUpdate = null;
+                        } else {
+                            // Check if stuck (last update older than 5 minutes)
+                            const minutesSinceUpdate = (now - lastUpdate) / (1000 * 60);
+                            if (minutesSinceUpdate > 5 && (status === 'running' || status === 'unknown')) {
+                                status = 'stuck';
+                            }
+                            
+                            // Format last update time (use local time for display)
+                            const hours = lastUpdate.getHours().toString().padStart(2, '0');
+                            const minutes = lastUpdate.getMinutes().toString().padStart(2, '0');
+                            const seconds = lastUpdate.getSeconds().toString().padStart(2, '0');
+                            lastUpdateEl.textContent = `${hours}:${minutes}:${seconds}`;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing last_update:', e);
+                        lastUpdate = null;
+                    }
+                }
+                
+                if (!lastUpdate) {
+                    lastUpdateEl.textContent = '-';
+                    // If no last update and status is running, mark as stuck
+                    if (status === 'running') {
                         status = 'stuck';
                     }
-                    // Format last update time
-                    const hours = lastUpdate.getHours().toString().padStart(2, '0');
-                    const minutes = lastUpdate.getMinutes().toString().padStart(2, '0');
-                    const seconds = lastUpdate.getSeconds().toString().padStart(2, '0');
-                    lastUpdateEl.textContent = `${hours}:${minutes}:${seconds}`;
-                } else {
-                    lastUpdateEl.textContent = '-';
                 }
                 
                 // Update status badge
