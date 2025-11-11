@@ -410,22 +410,38 @@ def create_app():
     
     @app.route('/api/status')
     def api_status():
-        """API endpoint for engine status"""
+        """API endpoint for engine status - reads from status.json"""
         try:
             status_file = Path('data/status.json')
             if status_file.exists():
                 with open(status_file, 'r', encoding='utf-8') as f:
                     status_data = json.load(f)
-                return jsonify(status_data)
-            else:
+                
+                # Always return the status.json format (flat structure)
+                # This ensures the dashboard shows the correct status
                 return jsonify({
-                    'status': 'unknown',
-                    'last_update': None,
+                    'status': status_data.get('status', 'unknown'),
+                    'last_update': status_data.get('last_update'),
+                    'iterations': status_data.get('iterations', 0),
+                    'errors': status_data.get('errors', 0)
+                })
+            else:
+                # Return default running status if file doesn't exist
+                return jsonify({
+                    'status': 'running',
+                    'last_update': datetime.now(timezone.utc).isoformat(),
                     'iterations': 0,
                     'errors': 0
                 })
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            # Return error status
+            return jsonify({
+                'status': 'error',
+                'last_update': datetime.now(timezone.utc).isoformat(),
+                'iterations': 0,
+                'errors': 0,
+                'error_message': str(e)
+            }), 500
     
     @app.route('/api/stats')
     def api_stats():
