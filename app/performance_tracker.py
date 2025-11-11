@@ -58,8 +58,8 @@ def track_performance(module_name):
         return wrapper
     return decorator
 
-def record_metrics(module_name, function_name, runtime, cpu_usage, memory_usage, success=True, error=None, api_latency=None):
-    """Record performance metrics"""
+def record_metrics(module_name, function_name, runtime, cpu_usage, memory_usage, success=True, error=None, api_latency=None, io_wait_time=None, thread_efficiency=None):
+    """Record performance metrics with I/O wait time and thread efficiency"""
     try:
         # Load existing metrics
         if PERFORMANCE_FILE.exists():
@@ -68,7 +68,9 @@ def record_metrics(module_name, function_name, runtime, cpu_usage, memory_usage,
         else:
             metrics = {
                 'modules': {},
-                'history': []
+                'history': [],
+                'before_optimization': {},
+                'after_optimization': {}
             }
         
         # Initialize module if not exists
@@ -78,6 +80,8 @@ def record_metrics(module_name, function_name, runtime, cpu_usage, memory_usage,
                 'cpu_usage': [],
                 'memory_usage': [],
                 'api_latency': [],
+                'io_wait_time': [],
+                'thread_efficiency': [],
                 'success_count': 0,
                 'error_count': 0,
                 'last_update': None
@@ -85,12 +89,25 @@ def record_metrics(module_name, function_name, runtime, cpu_usage, memory_usage,
         
         # Record metrics
         module_metrics = metrics['modules'][module_name]
+        
+        # Ensure all required keys exist (for backward compatibility)
+        if 'io_wait_time' not in module_metrics:
+            module_metrics['io_wait_time'] = []
+        if 'thread_efficiency' not in module_metrics:
+            module_metrics['thread_efficiency'] = []
+        
         module_metrics['runtimes'].append(runtime)
         module_metrics['cpu_usage'].append(cpu_usage)
         module_metrics['memory_usage'].append(memory_usage)
         
         if api_latency is not None:
             module_metrics['api_latency'].append(api_latency)
+        
+        if io_wait_time is not None:
+            module_metrics['io_wait_time'].append(io_wait_time)
+        
+        if thread_efficiency is not None:
+            module_metrics['thread_efficiency'].append(thread_efficiency)
         
         if success:
             module_metrics['success_count'] += 1
@@ -104,6 +121,10 @@ def record_metrics(module_name, function_name, runtime, cpu_usage, memory_usage,
             module_metrics['memory_usage'] = module_metrics['memory_usage'][-METRICS_HISTORY_SIZE:]
             if module_metrics['api_latency']:
                 module_metrics['api_latency'] = module_metrics['api_latency'][-METRICS_HISTORY_SIZE:]
+            if module_metrics['io_wait_time']:
+                module_metrics['io_wait_time'] = module_metrics['io_wait_time'][-METRICS_HISTORY_SIZE:]
+            if module_metrics['thread_efficiency']:
+                module_metrics['thread_efficiency'] = module_metrics['thread_efficiency'][-METRICS_HISTORY_SIZE:]
         
         module_metrics['last_update'] = datetime.now().isoformat()
         
@@ -114,6 +135,12 @@ def record_metrics(module_name, function_name, runtime, cpu_usage, memory_usage,
         
         if module_metrics['api_latency']:
             module_metrics['avg_api_latency'] = sum(module_metrics['api_latency']) / len(module_metrics['api_latency'])
+        
+        if module_metrics['io_wait_time']:
+            module_metrics['avg_io_wait_time'] = sum(module_metrics['io_wait_time']) / len(module_metrics['io_wait_time'])
+        
+        if module_metrics['thread_efficiency']:
+            module_metrics['avg_thread_efficiency'] = sum(module_metrics['thread_efficiency']) / len(module_metrics['thread_efficiency'])
         
         # Add to history
         history_entry = {

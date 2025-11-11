@@ -1,5 +1,5 @@
 """
-Odds Collector - Fetches live odds from The Odds API
+Odds Collector - Fetches live odds from The Odds API (Optimized)
 """
 import os
 import requests
@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 from app.performance_tracker import track_performance, record_api_latency
+from app.cache import get_cached_odds, cache_odds, is_cache_valid
 
 load_dotenv()
 
@@ -43,7 +44,7 @@ def init_database():
     logger.info("Database initialized")
 
 def fetch_odds():
-    """Fetch odds from The Odds API"""
+    """Fetch odds from The Odds API with caching"""
     if not ODDS_API_KEY or ODDS_API_KEY == 'your_api_key_here':
         logger.warning("ODDS_API_KEY not set in .env file")
         return None
@@ -58,6 +59,12 @@ def fetch_odds():
             'oddsFormat': 'decimal'
         }
         
+        # Check cache first
+        cached_data = get_cached_odds(url, params)
+        if cached_data and is_cache_valid(url, params, max_age_seconds=30):
+            logger.info(f"Using cached odds data ({len(cached_data['data'])} events)")
+            return cached_data['data']
+        
         # Measure API latency
         start_time = time.time()
         response = requests.get(url, params=params, timeout=10)
@@ -68,6 +75,10 @@ def fetch_odds():
         record_api_latency('collector', api_latency)
         
         data = response.json()
+        
+        # Cache the data
+        cache_odds(url, params, data)
+        
         logger.info(f"Fetched {len(data)} events from The Odds API (latency: {api_latency:.3f}s)")
         return data
     
@@ -85,14 +96,20 @@ def fetch_odds():
         return None
 
 def store_odds(odds_data):
-    """Store odds data in SQLite database"""
+    """Store odds data in SQLite database with batch inserts and I/O tracking"""
     if not odds_data:
         return
     
+    import time
+    from app.performance_tracker import record_metrics
+    
+    io_start = time.time()
     conn = sqlite3.connect('data/odds.db')
     cursor = conn.cursor()
     
     try:
+        # Prepare batch data
+        batch_data = []
         for event in odds_data:
             sport_key = event.get('sport_key', 'soccer')
             sport_title = event.get('sport_title', 'Soccer')
@@ -114,17 +131,35 @@ def store_odds(odds_data):
                         outcome_name = outcome.get('name', '')
                         price = outcome.get('price', 0.0)
                         
-                        cursor.execute('''
-                            INSERT INTO odds 
-                            (sport_key, sport_title, home_team, away_team, 
-                             commence_time, bookmaker, market, outcome_name, price)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (sport_key, sport_title, home_team, away_team,
-                              commence_time, bookmaker_name, market_key,
-                              outcome_name, price))
+                        batch_data.append((
+                            sport_key, sport_title, home_team, away_team,
+                            commence_time, bookmaker_name, market_key,
+                            outcome_name, price
+                        ))
+        
+        # Batch insert for better performance
+        if batch_data:
+            cursor.executemany('''
+                INSERT INTO odds 
+                (sport_key, sport_title, home_team, away_team, 
+                 commence_time, bookmaker, market, outcome_name, price)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', batch_data)
         
         conn.commit()
-        logger.info(f"Stored odds for {len(odds_data)} events")
+        io_wait_time = time.time() - io_start
+        
+        # Record I/O wait time
+        record_metrics(
+            module_name='collector',
+            function_name='store_odds',
+            runtime=0,
+            cpu_usage=0,
+            memory_usage=0,
+            io_wait_time=io_wait_time
+        )
+        
+        logger.info(f"Stored {len(batch_data)} odds records for {len(odds_data)} events (batch insert, I/O: {io_wait_time:.3f}s)")
     
     except Exception as e:
         logger.error(f"Error storing odds: {e}")
