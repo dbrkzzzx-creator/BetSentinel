@@ -239,16 +239,40 @@ def create_app():
                     return;
                 }
                 
-                // Determine status
-                let status = statusData.status || 'unknown';
+                // Handle both nested and flat status structures
+                let status = 'unknown';
                 let lastUpdate = null;
+                let lastUpdateTimestamp = null;
                 const now = new Date();
                 
-                // Parse last update timestamp (handle ISO 8601 with timezone)
-                if (statusData.last_update) {
+                // Check if status is nested (from collector API) or flat (from status.json)
+                if (statusData.status && typeof statusData.status === 'object') {
+                    // Nested structure from collector
+                    const nestedStatus = statusData.status;
+                    status = nestedStatus.status || 'unknown';
+                    lastUpdateTimestamp = nestedStatus.last_successful_fetch || statusData.timestamp;
+                    
+                    // If status is "recovering" or "stuck", show as stuck
+                    if (status === 'recovering' || nestedStatus.stuck_reason) {
+                        status = 'stuck';
+                    }
+                } else {
+                    // Flat structure from status.json
+                    status = statusData.status || 'unknown';
+                    lastUpdateTimestamp = statusData.last_update;
+                }
+                
+                // Parse last update timestamp
+                if (lastUpdateTimestamp) {
                     try {
+                        // Handle different timestamp formats
+                        let timestamp = lastUpdateTimestamp.toString();
                         // Replace Z with +00:00 for consistent parsing
-                        const timestamp = statusData.last_update.replace('Z', '+00:00');
+                        timestamp = timestamp.replace('Z', '+00:00');
+                        // If no timezone, assume UTC
+                        if (!timestamp.includes('+') && !timestamp.includes('-', 10)) {
+                            timestamp += '+00:00';
+                        }
                         lastUpdate = new Date(timestamp);
                         
                         // Check if date is valid
@@ -276,7 +300,7 @@ def create_app():
                 if (!lastUpdate) {
                     lastUpdateEl.textContent = '-';
                     // If no last update and status is running, mark as stuck
-                    if (status === 'running') {
+                    if (status === 'running' || status === 'unknown') {
                         status = 'stuck';
                     }
                 }
@@ -285,9 +309,11 @@ def create_app():
                 statusBadge.textContent = status;
                 statusBadge.className = `status-badge ${status}`;
                 
-                // Update iterations
+                // Update iterations (only if available in flat structure)
                 if (statusData.iterations !== undefined) {
                     iterationsEl.textContent = statusData.iterations;
+                } else {
+                    iterationsEl.textContent = '-';
                 }
             }
             

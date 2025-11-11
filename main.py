@@ -29,6 +29,33 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+def update_status_file():
+    """Update status.json file to keep it fresh"""
+    try:
+        status_file = Path('data/status.json')
+        status_data = {
+            "status": "running",
+            "last_update": datetime.now(timezone.utc).isoformat(),
+            "iterations": 0,
+            "errors": 0
+        }
+        
+        # Load existing status if it exists to preserve iterations and errors
+        if status_file.exists():
+            try:
+                with open(status_file, 'r', encoding='utf-8') as f:
+                    existing = json.load(f)
+                    status_data['iterations'] = existing.get('iterations', 0)
+                    status_data['errors'] = existing.get('errors', 0)
+            except:
+                pass
+        
+        # Write updated status
+        with open(status_file, 'w', encoding='utf-8') as f:
+            json.dump(status_data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"Failed to update status.json: {e}")
+
 def run_scheduler():
     """Run scheduled jobs"""
     # Schedule collector to run every 60 seconds
@@ -43,7 +70,13 @@ def run_scheduler():
     # Schedule reporter to run daily at midnight
     schedule.every().day.at("00:00").do(generate_daily_report)
     
+    # Schedule status update every 2 minutes to keep it fresh
+    schedule.every(2).minutes.do(update_status_file)
+    
     logger.info("Scheduler started with jobs configured")
+    
+    # Update status file on startup
+    update_status_file()
     
     # Run initial jobs
     logger.info("Running initial jobs...")
