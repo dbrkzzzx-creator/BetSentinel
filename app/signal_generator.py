@@ -5,6 +5,7 @@ import sqlite3
 import pandas as pd
 import logging
 from datetime import datetime, timedelta
+from app.performance_tracker import track_performance
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,7 @@ def log_signals(signals):
     
     logger.info(f"Logged {len(signals)} signals to {log_file}")
 
+@track_performance('signal_generator')
 def generate_signals():
     """Main function to generate signals"""
     logger.info("Starting signal generation...")

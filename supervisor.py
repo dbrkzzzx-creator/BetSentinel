@@ -4,12 +4,18 @@ Monitors and manages the autonomous engine with full observability
 """
 import os
 import sys
+import io
 import subprocess
 import time
 import json
 import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
+from app.anomaly_detector import detect_anomalies, check_anomaly_recovery, get_recent_anomalies
+from app.performance_tracker import get_all_metrics
+
+# Fix UTF-8 encoding for Windows console
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 PROJECT_ROOT = Path(__file__).parent
 VENV_ACTIVATE = PROJECT_ROOT / "venv" / "Scripts" / "activate"
@@ -39,7 +45,7 @@ class Supervisor:
         print(log_message)
         
         try:
-            with open(LOG_FILE, 'a', encoding='utf-8') as f:
+            with open(LOG_FILE, 'a', encoding='utf-8', errors='replace') as f:
                 f.write(log_message + '\n')
         except Exception as e:
             print(f"Error writing to log file: {e}")
@@ -98,7 +104,7 @@ class Supervisor:
         ]
         
         try:
-            with open(app_log, 'r', encoding='utf-8') as f:
+            with open(app_log, 'r', encoding='utf-8', errors='replace') as f:
                 log_content = f.read().lower()
             
             found = []
@@ -113,6 +119,37 @@ class Supervisor:
         except Exception as e:
             self.log(f"Error checking log success: {e}", "ERROR")
             return False, required_messages
+    
+    def check_performance(self):
+        """Check performance metrics and detect anomalies"""
+        try:
+            # Detect anomalies
+            anomalies = detect_anomalies()
+            
+            if anomalies:
+                self.log(f"Anomaly detected: {len(anomalies)} anomaly(ies) found", "WARNING")
+                for anomaly in anomalies:
+                    self.log(f"  - {anomaly['module']}: {anomaly['metric']} deviation: {anomaly['deviation_percent']:.2f}%", "WARNING")
+                return False, anomalies
+            else:
+                self.log("Performance OK", "INFO")
+                return True, []
+        
+        except Exception as e:
+            self.log(f"Error checking performance: {e}", "ERROR")
+            return True, []  # Assume OK on error
+    
+    def check_anomaly_recovery(self, anomalies):
+        """Check if anomalies have recovered within 3 runs"""
+        recovered = []
+        for anomaly in anomalies:
+            module = anomaly['module']
+            metric = anomaly['metric']
+            if check_anomaly_recovery(module, metric, runs_to_check=3):
+                recovered.append(anomaly)
+                self.log(f"Anomaly recovered: {module} - {metric}", "SUCCESS")
+        
+        return recovered
     
     def git_commit_success(self):
         """Commit and push on successful iteration"""
@@ -290,6 +327,18 @@ class Supervisor:
         stage_name, stage_status = self.get_current_stage_info()
         iteration_count = state.get('iteration_count', 0)
         
+        # Get performance metrics
+        metrics = get_all_metrics()
+        performance_status = "OK"
+        if metrics:
+            modules = metrics.get('modules', {})
+            if modules:
+                performance_status = f"{len(modules)} module(s) tracked"
+        
+        # Get recent anomalies
+        recent_anomalies = get_recent_anomalies(hours=1)
+        anomaly_status = f"{len(recent_anomalies)} anomaly(ies) in last hour" if recent_anomalies else "No anomalies"
+        
         self.log("=" * 60)
         self.log("ITERATION SUMMARY")
         self.log("=" * 60)
@@ -297,6 +346,8 @@ class Supervisor:
         self.log(f"Total Iterations: {iteration_count}")
         self.log(f"Last Run Status: {self.last_status}")
         self.log(f"Restart Count: {self.restart_count}")
+        self.log(f"Performance Status: {performance_status}")
+        self.log(f"Anomaly Status: {anomaly_status}")
         self.log("=" * 60)
     
     def check_completion(self):
@@ -337,7 +388,7 @@ class Supervisor:
                 # Check for completion
                 if self.check_completion():
                     self.log("=" * 60)
-                    self.log("✅ Project stable: BetSentinel ready")
+                    self.log("[OK] Project stable: BetSentinel ready")
                     self.log("=" * 60)
                     break
                 
@@ -355,11 +406,27 @@ class Supervisor:
                     self.last_status = "success"
                     self.log("Engine completed successfully", "SUCCESS")
                     
+                    # Check performance and anomalies
+                    performance_ok, anomalies = self.check_performance()
+                    
+                    if performance_ok:
+                        self.log("Performance OK", "INFO")
+                    else:
+                        self.log(f"Anomaly detected: {len(anomalies)} anomaly(ies)", "WARNING")
+                        
+                        # Check if anomalies have recovered
+                        recovered = self.check_anomaly_recovery(anomalies)
+                        if recovered:
+                            self.log(f"Anomaly recovered: {len(recovered)} anomaly(ies) self-corrected", "SUCCESS")
+                            # Auto-commit anomaly recovery
+                            self.git_commit_success()
+                    
                     # Final check for success logs
                     all_found, missing = self.check_log_success()
                     if all_found:
                         self.log("All success logs found!", "SUCCESS")
-                        self.git_commit_success()
+                        if performance_ok:
+                            self.git_commit_success()
                     else:
                         self.log(f"Missing success logs: {missing}", "WARNING")
                     

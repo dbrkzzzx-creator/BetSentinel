@@ -6,6 +6,7 @@ import pandas as pd
 import logging
 from datetime import datetime, timedelta
 import json
+from app.performance_tracker import track_performance
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,7 @@ def save_metrics(metrics):
     
     logger.info(f"Saved metrics to {metrics_file}")
 
+@track_performance('backtester')
 def run_backtest():
     """Main function to run backtest"""
     logger.info("Starting backtest...")

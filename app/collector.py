@@ -5,8 +5,10 @@ import os
 import requests
 import sqlite3
 import logging
+import time
 from datetime import datetime
 from dotenv import load_dotenv
+from app.performance_tracker import track_performance, record_api_latency
 
 load_dotenv()
 
@@ -56,11 +58,17 @@ def fetch_odds():
             'oddsFormat': 'decimal'
         }
         
+        # Measure API latency
+        start_time = time.time()
         response = requests.get(url, params=params, timeout=10)
+        api_latency = time.time() - start_time
         response.raise_for_status()
         
+        # Record API latency
+        record_api_latency('collector', api_latency)
+        
         data = response.json()
-        logger.info(f"Fetched {len(data)} events from The Odds API")
+        logger.info(f"Fetched {len(data)} events from The Odds API (latency: {api_latency:.3f}s)")
         return data
     
     except requests.exceptions.Timeout:
@@ -125,6 +133,7 @@ def store_odds(odds_data):
     finally:
         conn.close()
 
+@track_performance('collector')
 def collect_odds():
     """Main function to collect and store odds"""
     logger.info("Collector started")

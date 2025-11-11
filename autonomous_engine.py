@@ -418,9 +418,9 @@ class AutonomousEngine:
                     
                     if all_success and dashboard_ok and self.state['consecutive_24h_runs'] >= 2:
                         self.state['project_complete'] = True
-                        self.git_commit("✅ Project stable: BetSentinel ready")
+                        self.git_commit("[OK] Project stable: BetSentinel ready")
                         print("\n" + "="*60)
-                        print("✅ PROJECT COMPLETE!")
+                        print("[OK] PROJECT COMPLETE!")
                         print("BetSentinel is stable and ready")
                         print("="*60)
                         break
