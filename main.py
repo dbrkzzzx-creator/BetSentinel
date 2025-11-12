@@ -8,6 +8,9 @@ import time
 from dotenv import load_dotenv
 import schedule
 import logging
+from datetime import datetime, timezone
+import json
+from pathlib import Path
 
 from app.collector import collect_odds
 from app.signal_generator import generate_signals
@@ -43,7 +46,7 @@ def update_status_file():
         # Load existing status if it exists to preserve iterations and errors
         if status_file.exists():
             try:
-                with open(status_file, 'r', encoding='utf-8') as f:
+                with open(status_file, 'r', encoding='utf-8-sig') as f:
                     existing = json.load(f)
                     status_data['iterations'] = existing.get('iterations', 0)
                     status_data['errors'] = existing.get('errors', 0)
