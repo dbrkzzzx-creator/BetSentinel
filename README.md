@@ -110,6 +110,25 @@ The engine will:
 - The Odds API key
 - Internet connection for API calls
 
+## BetSentinel Dashboard
+
+A full-stack AI betting automation dashboard.
+
+### Run Backend
+
+```bash
+python app.py
+```
+
+### Run Frontend
+
+```bash
+cd frontend
+npm run dev
+```
+
+The frontend will be available at `http://localhost:3000` and connects to the Flask backend API at `http://localhost:5000`.
+
 ## License
 
 MIT
